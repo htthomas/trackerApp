@@ -1,4 +1,5 @@
 
+#include "AsioTelnetClient.h"
 #include <opencv2/highgui.hpp>
 #include <opencv2/objdetect.hpp>
 #include <opencv2/imgproc.hpp>
@@ -7,13 +8,12 @@
 #include <stdio.h>
 #include <sstream>
 #include <cstring>
-#include <cmath>  
+#include <cmath>
 #include <time.h>
 #include <dos.h>
 #include <windows.h>
 #include <stdlib.h>
  
-#include "AsioTelnetClient.h"
 #ifdef POSIX
 #include <termios.h>
 #endif
@@ -90,19 +90,14 @@ int main(int argc, char * argv[])
 	String command;
 	Point center;
 	
-	char ch;
 	int j = 0;
 
 	//enter admin and password
-	while(true)
-	{
-		j++;
-		cin.get(ch);
-		telnet_client.write(ch);
-
-		if (ch == '\r' && j == 2)
-			break;
-	}
+	telnet_client.write("admin");
+	telnet_client.write("\r");
+	Sleep(500);
+	telnet_client.write("password");
+	telnet_client.write("\r");
 
 	while(true)
 	{

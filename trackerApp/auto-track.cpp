@@ -2,16 +2,18 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/objdetect.hpp>
 #include <opencv2/imgproc.hpp>
+
 #include <iostream>
 #include <stdio.h>
+#include <sstream>
+#include <cstring>
 #include <cmath>  
-
-#include "AsioTelnetClient.h"
 #include <time.h>
 #include <dos.h>
 #include <windows.h>
 #include <stdlib.h>
-
+ 
+#include "AsioTelnetClient.h"
 #ifdef POSIX
 #include <termios.h>
 #endif
@@ -23,8 +25,8 @@ Point detectAndDisplay(Mat frame);
 String trackIt(Point meta, double frameWidth, double frameHeight);
 
 Mat frame; //frame to detect faces on
-CascadeClassifier cascade; //define cascade
-string cascade_name = "haarcascade_frontalface.xml"; //pick cascade here
+CascadeClassifier cascade;
+string cascade_name = "haarcascade_upperbody.xml"; //pick cascade here
 
 int main(int argc, char * argv[])
 {
@@ -33,7 +35,7 @@ int main(int argc, char * argv[])
 		tcgetattr(0, &stored_settings);
 		termios new_settings = stored_settings;
 		new_settings.c_lflag &= (~ICANON);
-		new_settings.c_lflag &= (~ISIG); // don't automatically handle control-C
+		new_settings.c_lflag &= (~ISIG);
 		tcsetattr(0, TCSANOW, &new_settings);
 	#endif
 
@@ -43,7 +45,7 @@ int main(int argc, char * argv[])
 	if (argc != 3)
 	{
 		#ifdef WIN32
-				dest_ip = "192.168.0.1";
+				dest_ip = "192.168.1.3";
 				dest_port = "23";
 		#else
 				std::cerr << "Usage: telnet <host> <port>\n";
@@ -56,15 +58,13 @@ int main(int argc, char * argv[])
 		dest_port = argv[2];
 	}
 
-	cout << "SimpleTelnetClient is tring to connect " << dest_ip << ":" << dest_port << std::endl;
+	cout << "Trying to connect " << dest_ip << ":" << dest_port << std::endl;
 
 	boost::asio::io_service io_service;
 
-	// resolve the host name and port number to an iterator that can be used to connect to the server
 	tcp::resolver resolver(io_service);
 	tcp::resolver::query query(dest_ip, dest_port);
 	tcp::resolver::iterator iterator = resolver.resolve(query);
-	// define an instance of the main class of this program
 
 	AsioTelnetClient telnet_client(io_service, iterator);
 
@@ -76,8 +76,6 @@ int main(int argc, char * argv[])
 		std::cout << " # disconnected" << std::endl;
 	});
 
-
-	//open video and cascade + error check
 	VideoCapture capture(0);
 
 	if (!capture.isOpened()) 
@@ -89,31 +87,22 @@ int main(int argc, char * argv[])
 	double frameHeight = capture.get(CAP_PROP_FRAME_HEIGHT);
 	double resolution = frameWidth * frameHeight;
 	
-	String str;
+	String command;
 	Point center;
-
-	telnet_client.write('a');
-	telnet_client.write('d');
-	telnet_client.write('m');
-	telnet_client.write('i');
-	telnet_client.write('n');
-
-	telnet_client.write('\r');
-
-	Sleep(500);
-
-	telnet_client.write('p');
-	telnet_client.write('a');
-	telnet_client.write('s');
-	telnet_client.write('s');
-	telnet_client.write('w');
-	telnet_client.write('o');
-	telnet_client.write('r');
-	telnet_client.write('d');
-
-	telnet_client.write('\r');
-
+	
+	char ch;
 	int j = 0;
+
+	//enter admin and password
+	while(true)
+	{
+		j++;
+		cin.get(ch);
+		telnet_client.write(ch);
+
+		if (ch == '\r' && j == 2)
+			break;
+	}
 
 	while(true)
 	{
@@ -124,15 +113,16 @@ int main(int argc, char * argv[])
 		{
 			center = detectAndDisplay(frame);
 
-			if (j % 2 == 0)
+			if (j % 12 == 0) //send command every x frames
 			{
-				str = trackIt(center, frameWidth, frameHeight);
-
-				for (std::string::size_type i = 0; i < str.size(); ++i)
+				command = trackIt(center, frameWidth, frameHeight);
+				
+				if (command == "camera stop")
 				{
-					cout << str[i];
-					telnet_client.write(str[i]);
+					cout << "camera stop"; //stop both pan and tilt?
 				}
+
+				telnet_client.write(command);
 				telnet_client.write('\r');
 			}
 		}
@@ -145,14 +135,14 @@ int main(int argc, char * argv[])
 		if (27 == char(waitKey(10))) break; //wait for ESC key to exit
 	}
 
-	#ifdef POSIX // restore default buffering of standard input
+	#ifdef POSIX
 	tcsetattr(0, TCSANOW, &stored_settings);
 	#endif
 
 	return 0;
 }
 
-//detects faces and returns their location as a point
+//detect faces and return their location as a point
 Point detectAndDisplay(Mat frame)
 {
 	vector<Rect> faces; //list of faces in frame
@@ -179,27 +169,43 @@ Point detectAndDisplay(Mat frame)
 	return center;
 }
 
+//returns command to send to camera
 String trackIt(Point meta, double frameWidth, double frameHeight)
 {
-	//double x = abs(48 * (meta.x / frameWidth - 0.5));
-	//int speed = (int)x;
+	String command;
+	double speed;
 
 	if (meta.x == 0)
 	{
-		return "camera pan stop";
+		return "camera stop";
 	}
-	else if (meta.x < frameWidth * 0.4)
+	else if (meta.x < frameWidth * 0.45)
 	{
-		//cout << "camera pan left";
-		return "camera pan left";
+		command = "camera pan left ";
+		speed = abs(48 * (meta.x / frameWidth - 0.5));
 	}
-	else if (meta.x > frameWidth * 0.6)
+	else if (meta.x > frameWidth * 0.55)
 	{
-		//cout << "camera pan right";
-		return "camera pan right";
+		command = "camera pan right ";
+		speed = abs(48 * (meta.x / frameWidth - 0.5));
+	}
+	else if (meta.y < frameHeight * 0.45)
+	{
+		command = "camera tilt up ";
+		speed = abs(40 * (meta.y / frameHeight - 0.5));
+	}
+	else if (meta.y > frameHeight * 0.55)
+	{
+		command = "camera tilt down ";
+		speed = abs(40 * (meta.y / frameHeight - 0.5));
 	}
 	else
 	{
-		return "camera pan stop";
+		return "camera stop";
 	}
+
+	int s = (int)speed;
+	ostringstream oss;
+	oss << command << s;
+	return oss.str();
 }

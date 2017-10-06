@@ -22,11 +22,11 @@ using namespace std;
 using namespace cv;
 
 Point detectAndDisplay(Mat frame);
-String trackIt(Point meta, double frameWidth, double frameHeight);
+String trackIt(Point meta, double frameWidth, double frameHeight, double size);
 
 Mat frame; //frame to detect faces on
 CascadeClassifier cascade;
-string cascade_name = "haarcascade_upperbody.xml"; //pick cascade here
+string cascade_name = "haarcascade_frontalface.xml"; //pick cascade here
 
 int main(int argc, char * argv[])
 {
@@ -45,7 +45,7 @@ int main(int argc, char * argv[])
 	if (argc != 3)
 	{
 		#ifdef WIN32
-				dest_ip = "192.168.1.3";
+				dest_ip = "169.254.1.1";
 				dest_port = "23";
 		#else
 				std::cerr << "Usage: telnet <host> <port>\n";
@@ -85,12 +85,7 @@ int main(int argc, char * argv[])
 
 	double frameWidth = capture.get(CAP_PROP_FRAME_WIDTH);
 	double frameHeight = capture.get(CAP_PROP_FRAME_HEIGHT);
-	double resolution = frameWidth * frameHeight;
-	
-	String command;
-	Point center;
-	
-	int j = 0;
+	double size = frameWidth * frameHeight;
 
 	//enter admin and password
 	telnet_client.write("admin");
@@ -99,7 +94,15 @@ int main(int argc, char * argv[])
 	telnet_client.write("password");
 	telnet_client.write("\r");
 
-	while(true)
+	int j = 0;
+	string str;
+	Point center;
+	string prv_cmd = "camera pan stop";
+	POINT prv_center;
+	prv_center.x = 0;
+	prv_center.y = 0;
+
+	while (true)
 	{
 		capture >> frame; //grab frame from video capture
 		j++;
@@ -107,20 +110,24 @@ int main(int argc, char * argv[])
 		if (!frame.empty())
 		{
 			center = detectAndDisplay(frame);
-
-			if (j % 12 == 0) //send command every x frames
+			if (center.x == 0 && center.y == 0) {
+				center.x = prv_center.x;
+				center.y = prv_center.y;
+			}
+			if (j % 2 == 0)
 			{
-				command = trackIt(center, frameWidth, frameHeight);
-				
-				if (command == "camera stop")
+				str = trackIt(center, frameWidth, frameHeight, size);
+				if (str != prv_cmd)
 				{
-					cout << "camera stop"; //stop both pan and tilt?
+					telnet_client.write(str);
+					telnet_client.write('\r');
+					}
+				prv_cmd = str;
 				}
 
-				telnet_client.write(command);
-				telnet_client.write('\r');
+			prv_center.x = center.x;
+			prv_center.y = center.y;
 			}
-		}
 		else
 		{
 			printf("Error capturing frame");
@@ -128,7 +135,7 @@ int main(int argc, char * argv[])
 		}
 
 		if (27 == char(waitKey(10))) break; //wait for ESC key to exit
-	}
+		}
 
 	#ifdef POSIX
 	tcsetattr(0, TCSANOW, &stored_settings);
@@ -165,42 +172,39 @@ Point detectAndDisplay(Mat frame)
 }
 
 //returns command to send to camera
-String trackIt(Point meta, double frameWidth, double frameHeight)
+String trackIt(Point meta, double frameWidth, double frameHeight, double size)
 {
-	String command;
-	double speed;
+	//double x = abs(48 * (meta.x / frameWidth - 0.5));
+	//int speed = (int)x;
 
 	if (meta.x == 0)
 	{
-		return "camera stop";
+		return "camera pan stop";
 	}
-	else if (meta.x < frameWidth * 0.45)
+	if (meta.y == 0)
 	{
-		command = "camera pan left ";
-		speed = abs(48 * (meta.x / frameWidth - 0.5));
+		return "camera tilt stop";
 	}
-	else if (meta.x > frameWidth * 0.55)
+	else if (meta.x < frameWidth * 0.3)
 	{
-		command = "camera pan right ";
-		speed = abs(48 * (meta.x / frameWidth - 0.5));
+		//cout << "camera pan left";
+		return "camera pan left";
 	}
-	else if (meta.y < frameHeight * 0.45)
+	else if (meta.x > frameWidth * 0.7)
 	{
-		command = "camera tilt up ";
-		speed = abs(40 * (meta.y / frameHeight - 0.5));
+		//cout << "camera pan right";
+		return "camera pan right";
 	}
-	else if (meta.y > frameHeight * 0.55)
+	else if (meta.y < frameHeight *0.3)
 	{
-		command = "camera tilt down ";
-		speed = abs(40 * (meta.y / frameHeight - 0.5));
+		return "camera tilt up";
+	}
+	else if (meta.y > frameHeight *0.7)
+	{
+		return "camera tilt down";
 	}
 	else
 	{
-		return "camera stop";
+		return "camera pan stop";
 	}
-
-	int s = (int)speed;
-	ostringstream oss;
-	oss << command << s;
-	return oss.str();
 }

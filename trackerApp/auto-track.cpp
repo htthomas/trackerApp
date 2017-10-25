@@ -1,4 +1,3 @@
-
 #include "AsioTelnetClient.h"
 #include <opencv2/highgui.hpp>
 #include <opencv2/objdetect.hpp>
@@ -13,7 +12,7 @@
 #include <dos.h>
 #include <windows.h>
 #include <stdlib.h>
- 
+
 #ifdef POSIX
 #include <termios.h>
 #endif
@@ -25,8 +24,8 @@ Point detectAndDisplay(Mat frame);
 String trackIt(Point meta, double frameWidth, double frameHeight, double size);
 
 Mat frame; //frame to detect faces on
-CascadeClassifier cascade;
-string cascade_name = "haarcascade_frontalface.xml"; //pick cascade here
+CascadeClassifier cascade1;
+string cascade_name = "headshoulders.xml"; //pick cascade here
 
 int main(int argc, char * argv[])
 {
@@ -41,21 +40,28 @@ int main(int argc, char * argv[])
 
 	string dest_ip;
 	string dest_port;
+	string acct;
+	string pw;
 
-	if (argc != 3)
+	if (argc != 5)
 	{
 		#ifdef WIN32
-				dest_ip = "169.254.1.1";
-				dest_port = "23";
+			dest_ip = "137.229.182.171";
+			dest_port = "23";
+			acct = "admin";
+			pw = "password";
+
 		#else
-				std::cerr << "Usage: telnet <host> <port>\n";
-				return 1;
+			std::cerr << "Usage: autotrack <host> <port> <acct> <pw>\n";
+			return 1;
 		#endif
 	}
 	else
 	{
 		dest_ip = argv[1];
 		dest_port = argv[2];
+		acct = argv[3];
+		pw = argv[4];
 	}
 
 	cout << "Trying to connect " << dest_ip << ":" << dest_port << std::endl;
@@ -68,30 +74,36 @@ int main(int argc, char * argv[])
 
 	AsioTelnetClient telnet_client(io_service, iterator);
 
-	telnet_client.setReceivedSocketCallback([](const std::string& message) {
+	telnet_client.setReceivedSocketCallback([](const std::string& message)
+	{
 		std::cout << message;
 	});
 
-	telnet_client.setClosedSocketCallback([]() {
-		std::cout << " # disconnected" << std::endl;
+	telnet_client.setClosedSocketCallback([]()
+	{
+		std::cout << "Could not connect to host" << std::endl;
 	});
 
 	VideoCapture capture(0);
 
-	if (!capture.isOpened()) 
-		{ printf("Error loading video capture"); return 1; }
-	if (!cascade.load(cascade_name)) 
-		{ printf("Error loading cascade"); return 1; }
+	if (!capture.isOpened())
+	{
+		printf("Error loading video capture"); return 1;
+	}
+	if (!cascade1.load(cascade_name))
+	{
+		printf("Error loading cascade"); return 1;
+	}
 
 	double frameWidth = capture.get(CAP_PROP_FRAME_WIDTH);
 	double frameHeight = capture.get(CAP_PROP_FRAME_HEIGHT);
 	double size = frameWidth * frameHeight;
 
 	//enter admin and password
-	telnet_client.write("admin");
+	telnet_client.write(acct);
 	telnet_client.write("\r");
 	Sleep(500);
-	telnet_client.write("password");
+	telnet_client.write(pw);
 	telnet_client.write("\r");
 
 	int j = 0;
@@ -114,20 +126,20 @@ int main(int argc, char * argv[])
 				center.x = prv_center.x;
 				center.y = prv_center.y;
 			}
-			if (j % 2 == 0)
+			if (j % 12 == 0)
 			{
 				str = trackIt(center, frameWidth, frameHeight, size);
 				if (str != prv_cmd)
 				{
 					telnet_client.write(str);
 					telnet_client.write('\r');
-					}
-				prv_cmd = str;
 				}
+				prv_cmd = str;
+			}
 
 			prv_center.x = center.x;
 			prv_center.y = center.y;
-			}
+		}
 		else
 		{
 			printf("Error capturing frame");
@@ -135,10 +147,10 @@ int main(int argc, char * argv[])
 		}
 
 		if (27 == char(waitKey(10))) break; //wait for ESC key to exit
-		}
+	}
 
 	#ifdef POSIX
-	tcsetattr(0, TCSANOW, &stored_settings);
+		tcsetattr(0, TCSANOW, &stored_settings);
 	#endif
 
 	return 0;
@@ -156,7 +168,7 @@ Point detectAndDisplay(Mat frame)
 
 	cvtColor(frame, frame_gray, COLOR_BGR2GRAY);
 	//params: 1-frame 2-vector 3-scale 4-minNeighbors 5-flags 6-minsize 7-maxsize
-	cascade.detectMultiScale(frame_gray, faces, 1.2, 3, 0, Size(100, 100));
+	cascade1.detectMultiScale(frame_gray, faces, 1.2, 3, CV_HAAR_FIND_BIGGEST_OBJECT, Size(100, 100));
 
 	//iterate through all detected faces and draw rectangles on frame
 	for (int i = 0; i < faces.size(); i++)
@@ -185,21 +197,19 @@ String trackIt(Point meta, double frameWidth, double frameHeight, double size)
 	{
 		return "camera tilt stop";
 	}
-	else if (meta.x < frameWidth * 0.3)
+	else if (meta.x < frameWidth * 0.35)
 	{
-		//cout << "camera pan left";
 		return "camera pan left";
 	}
-	else if (meta.x > frameWidth * 0.7)
+	else if (meta.x > frameWidth * 0.65)
 	{
-		//cout << "camera pan right";
 		return "camera pan right";
 	}
-	else if (meta.y < frameHeight *0.3)
+	else if (meta.y < frameHeight * 0.35)
 	{
 		return "camera tilt up";
 	}
-	else if (meta.y > frameHeight *0.7)
+	else if (meta.y > frameHeight * 0.65)
 	{
 		return "camera tilt down";
 	}

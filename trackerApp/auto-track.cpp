@@ -101,8 +101,7 @@ int main(int argc, char * argv[])
 
 	Rect face;
 	int faceSize;
-	Point center;
-	Point prv_center;
+	Rect prv_face = Rect(Point(0, 0), Point(0, 0));
 	string cmd;
 	string prv_cmd = "camera pan stop";
 
@@ -116,22 +115,22 @@ int main(int argc, char * argv[])
 		{
 			face = detectAndDisplay(frame);
 
-			if (center.x == 0 && center.y == 0)
-				center = prv_center;
+			if (face == Rect(Point(0, 0), Point(0, 0))) //if no face detected
+				face = prv_face;
 
 			if (j % 5 == 0) //set command freq here
 			{
 				cmd = trackIt(face, frameWidth, frameHeight, frameSize);
-				cout << cmd << endl;
 
 				if (cmd != prv_cmd)
 				{
+					cout << cmd << endl;
 					telnet_client.write(cmd);
 					telnet_client.write('\r');
 				}
 				prv_cmd = cmd;
 			}
-			prv_center = center;
+			prv_face = face;
 		}
 		else
 		{

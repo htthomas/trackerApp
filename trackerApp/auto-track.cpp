@@ -100,7 +100,6 @@ int main(int argc, char * argv[])
 	double frameSize = frameWidth * frameHeight;
 
 	Rect face;
-	int faceSize;
 	Rect prv_face = Rect(Point(0, 0), Point(0, 0));
 	string cmd;
 	string prv_cmd = "camera pan stop";
@@ -151,10 +150,10 @@ int main(int argc, char * argv[])
 Rect detectAndDisplay(Mat frame)
 {
 	vector<Rect> faces;
-	Mat frame_gray;
+	Rect faceRect;
 	Point botLeft;
 	Point topRight;
-	Rect faceRect;
+	Mat frame_gray;
 
 	cvtColor(frame, frame_gray, COLOR_BGR2GRAY);
 	//params: 1-frame 2-vector 3-scale 4-minNeighbors 5-flags 6-minsize 7-maxsize

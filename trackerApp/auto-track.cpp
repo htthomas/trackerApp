@@ -53,7 +53,7 @@ int main(int argc, char * argv[])
 				pw = "password";
 
 			#else
-				std::cerr << "Usage: autotrack <host> <port> <acct> <pw>\n";
+				cerr << "Usage: autotrack <host> <port> <acct> <pw>\n";
 				return 1;
 			#endif
 		}

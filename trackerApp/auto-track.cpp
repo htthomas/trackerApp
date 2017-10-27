@@ -20,100 +20,91 @@
 using namespace std;
 using namespace cv;
 
-Point detectAndDisplay(Mat frame);
-String trackIt(Point meta, double frameWidth, double frameHeight, double size);
+Rect detectAndDisplay(Mat frame);
+String trackIt(Rect face, double frameWidth, double frameHeight, double frameSize);
 
 Mat frame; //frame to detect faces on
-CascadeClassifier cascade1;
-string cascade_name = "headshoulders.xml"; //pick cascade here
+CascadeClassifier cascade;
+string cascade_name = "headshoulders.xml"; //specify cascade here
 
 int main(int argc, char * argv[])
 {
-	#ifdef POSIX
-		termios stored_settings;
-		tcgetattr(0, &stored_settings);
-		termios new_settings = stored_settings;
-		new_settings.c_lflag &= (~ICANON);
-		new_settings.c_lflag &= (~ISIG);
-		tcsetattr(0, TCSANOW, &new_settings);
-	#endif
-
-	string dest_ip;
-	string dest_port;
-	string acct;
-	string pw;
-
-	if (argc != 5)
-	{
-		#ifdef WIN32
-			dest_ip = "137.229.182.171";
-			dest_port = "23";
-			acct = "admin";
-			pw = "password";
-
-		#else
-			std::cerr << "Usage: autotrack <host> <port> <acct> <pw>\n";
-			return 1;
+	//***begin telnet initilization***//
+		#ifdef POSIX
+			termios stored_settings;
+			tcgetattr(0, &stored_settings);
+			termios new_settings = stored_settings;
+			new_settings.c_lflag &= (~ICANON);
+			new_settings.c_lflag &= (~ISIG);
+			tcsetattr(0, TCSANOW, &new_settings);
 		#endif
-	}
-	else
-	{
-		dest_ip = argv[1];
-		dest_port = argv[2];
-		acct = argv[3];
-		pw = argv[4];
-	}
 
-	cout << "Trying to connect " << dest_ip << ":" << dest_port << std::endl;
+		string dest_ip;
+		string dest_port;
+		string acct;
+		string pw;
 
-	boost::asio::io_service io_service;
+		if (argc != 5)
+		{
+			#ifdef WIN32
+				dest_ip = "137.229.182.171";
+				dest_port = "23";
+				acct = "admin";
+				pw = "password";
 
-	tcp::resolver resolver(io_service);
-	tcp::resolver::query query(dest_ip, dest_port);
-	tcp::resolver::iterator iterator = resolver.resolve(query);
+			#else
+				cerr << "Usage: autotrack <host> <port> <acct> <pw>\n";
+				return 1;
+			#endif
+		}
+		else
+		{
+			dest_ip = argv[1];
+			dest_port = argv[2];
+			acct = argv[3];
+			pw = argv[4];
+		}
 
-	AsioTelnetClient telnet_client(io_service, iterator);
+		cout << "Trying to connect " << dest_ip << ":" << dest_port << " " << acct << " " << pw << endl;
 
-	telnet_client.setReceivedSocketCallback([](const std::string& message)
-	{
-		std::cout << message;
-	});
+		boost::asio::io_service io_service;
+		tcp::resolver resolver(io_service);
+		tcp::resolver::query query(dest_ip, dest_port);
+		tcp::resolver::iterator iterator = resolver.resolve(query);
+		AsioTelnetClient telnet_client(io_service, iterator);
 
-	telnet_client.setClosedSocketCallback([]()
-	{
-		std::cout << "Could not connect to host" << std::endl;
-	});
+		telnet_client.setReceivedSocketCallback([](const string& message)
+		{
+			cout << message;
+		});
+
+		telnet_client.setClosedSocketCallback([]()
+		{
+			cout << "Could not connect to host" << endl;
+		});
+
+		telnet_client.write(acct);
+		telnet_client.write("\r");
+		Sleep(500);
+		telnet_client.write(pw);
+		telnet_client.write("\r");
+	//***end telnet initilization***//
 
 	VideoCapture capture(0);
 
-	if (!capture.isOpened())
-	{
-		printf("Error loading video capture"); return 1;
-	}
-	if (!cascade1.load(cascade_name))
-	{
-		printf("Error loading cascade"); return 1;
-	}
+	if (!capture.isOpened()){ printf("Error loading video capture"); return 1; }
+	if (!cascade.load(cascade_name)){ printf("Error loading cascade"); return 1; }
 
 	double frameWidth = capture.get(CAP_PROP_FRAME_WIDTH);
 	double frameHeight = capture.get(CAP_PROP_FRAME_HEIGHT);
-	double size = frameWidth * frameHeight;
+	double frameSize = frameWidth * frameHeight;
 
-	//enter admin and password
-	telnet_client.write(acct);
-	telnet_client.write("\r");
-	Sleep(500);
-	telnet_client.write(pw);
-	telnet_client.write("\r");
-
-	int j = 0;
-	string str;
-	Point center;
+	Rect face;
+	Rect prv_face = Rect(Point(0, 0), Point(0, 0));
+	string cmd;
 	string prv_cmd = "camera pan stop";
-	POINT prv_center;
-	prv_center.x = 0;
-	prv_center.y = 0;
 
+	int j = 0; //frame counter
 	while (true)
 	{
 		capture >> frame; //grab frame from video capture
@@ -121,34 +112,33 @@ int main(int argc, char * argv[])
 
 		if (!frame.empty())
 		{
-			center = detectAndDisplay(frame);
-			if (center.x == 0 && center.y == 0) {
-				center.x = prv_center.x;
-				center.y = prv_center.y;
-			}
-			if (j % 12 == 0)
+			face = detectAndDisplay(frame);
+
+			if (face == Rect(Point(0, 0), Point(0, 0))) //if no face detected
+				face = prv_face;
+
+			if (j % 5 == 0) //set command freq here
 			{
-				str = trackIt(center, frameWidth, frameHeight, size);
-				if (str != prv_cmd)
+				cmd = trackIt(face, frameWidth, frameHeight, frameSize);
+
+				if (cmd != prv_cmd)
 				{
-					telnet_client.write(str);
+					cout << cmd << endl;
+					telnet_client.write(cmd);
 					telnet_client.write('\r');
 				}
-				prv_cmd = str;
+				prv_cmd = cmd;
 			}
-
-			prv_center.x = center.x;
-			prv_center.y = center.y;
+			prv_face = face;
 		}
 		else
 		{
 			printf("Error capturing frame");
 			break;
 		}
-
 		if (27 == char(waitKey(10))) break; //wait for ESC key to exit
 	}
-
+	//telnet cleanup
 	#ifdef POSIX
 		tcsetattr(0, TCSANOW, &stored_settings);
 	#endif
@@ -156,65 +146,67 @@ int main(int argc, char * argv[])
 	return 0;
 }
 
-//detect faces and return their location as a point
-Point detectAndDisplay(Mat frame)
+//detect faces and return their rectangle
+Rect detectAndDisplay(Mat frame)
 {
-	vector<Rect> faces; //list of faces in frame
-	Mat frame_gray; //grayscale frame
-	Point botLeft; //point of rectangle
-	Point topRight; //point of rectangle
-	Point center; //center of rect
-	int size; //size of face
+	vector<Rect> faces;
+	Rect faceRect;
+	Point botLeft;
+	Point topRight;
+	Mat frame_gray;
 
 	cvtColor(frame, frame_gray, COLOR_BGR2GRAY);
 	//params: 1-frame 2-vector 3-scale 4-minNeighbors 5-flags 6-minsize 7-maxsize
-	cascade1.detectMultiScale(frame_gray, faces, 1.2, 3, CV_HAAR_FIND_BIGGEST_OBJECT, Size(100, 100));
+	cascade.detectMultiScale(frame_gray, faces, 1.2, 3, CV_HAAR_FIND_BIGGEST_OBJECT, Size(100, 100));
 
 	//iterate through all detected faces and draw rectangles on frame
 	for (int i = 0; i < faces.size(); i++)
 	{
 		botLeft = Point(faces[i].x, faces[i].y);
-		topRight = Point((faces[i].x + faces[i].width), (faces[i].y + faces[i].height));
-		center = Point((faces[i].x + 0.5 * faces[i].width), (faces[i].y + 0.5 * faces[i].height));
-		size = (faces[i].width * faces[i].height);
+		topRight = Point(faces[i].x + faces[i].width, faces[i].y + faces[i].height);
+		faceRect = Rect(botLeft, topRight);
 		rectangle(frame, botLeft, topRight, Scalar(0, 255, 0), 2, 8, 0);
 	}
 	imshow("Automated Lecture Tracking", frame);
-	return center;
+
+	return faceRect;
 }
 
 //returns command to send to camera
-String trackIt(Point meta, double frameWidth, double frameHeight, double size)
+String trackIt(Rect face, double frameWidth, double frameHeight, double frameSize)
 {
-	//double x = abs(48 * (meta.x / frameWidth - 0.5));
-	//int speed = (int)x;
+	Point center = Point(face.x + face.width / 2, face.y + face.height / 2);
+	int faceSize = (face.width * face.height);
+	int x_weight = (int)abs(200 * (center.x / frameWidth - 0.5));
+	int y_weight = (int)abs(200 * (center.y / frameWidth - 0.5));
+	double lowerLimit = 0.4;
+	double upperLimit = 0.6;
 
-	if (meta.x == 0)
+	if ((center.x > frameWidth*lowerLimit && center.x < frameWidth*upperLimit) || center.x == 0)
+		x_weight = 0;
+
+	if ((center.y > frameHeight*lowerLimit && center.y < frameHeight*upperLimit) || center.y == 0) 
+		y_weight = 0;
+
+	if (x_weight >= y_weight && x_weight > 0)
 	{
-		return "camera pan stop";
+		if (center.x - frameWidth / 2 > 0)
+			return "camera pan right";
+		else
+			return "camera pan left";
 	}
-	if (meta.y == 0)
+	else if (x_weight < y_weight && y_weight > 0)
 	{
-		return "camera tilt stop";
+		if (center.y - frameHeight / 2 > 0)
+			return "camera tilt down";
+		else
+			return "camera tilt up";
 	}
-	else if (meta.x < frameWidth * 0.35)
+	else if (x_weight == 0 && y_weight == 0)
 	{
-		return "camera pan left";
-	}
-	else if (meta.x > frameWidth * 0.65)
-	{
-		return "camera pan right";
-	}
-	else if (meta.y < frameHeight * 0.35)
-	{
-		return "camera tilt up";
-	}
-	else if (meta.y > frameHeight * 0.65)
-	{
-		return "camera tilt down";
-	}
-	else
-	{
-		return "camera pan stop";
+		if (abs(center.x - frameWidth / 2) > abs(center.y - frameHeight / 2))
+			return "camera tilt stop";
+		else
+			return "camera pan stop";
 	}
 }

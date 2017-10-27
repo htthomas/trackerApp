@@ -29,7 +29,7 @@ string cascade_name = "headshoulders.xml"; //specify cascade here
 
 int main(int argc, char * argv[])
 {
-	//***begin telnet initilization***//
+	//***begin telnet initialization***//
 		#ifdef POSIX
 			termios stored_settings;
 			tcgetattr(0, &stored_settings);
@@ -88,7 +88,7 @@ int main(int argc, char * argv[])
 		Sleep(500);
 		telnet_client.write(pw);
 		telnet_client.write("\r");
-	//***end telnet initilization***//
+	//***end telnet initialization***//
 
 	VideoCapture capture(0);
 

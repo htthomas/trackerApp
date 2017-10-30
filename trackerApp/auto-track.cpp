@@ -43,7 +43,7 @@ int main(int argc, char * argv[])
 	if (argc != 3)
 	{
 		#ifdef WIN32
-				dest_ip = "192.168.0.1";
+				dest_ip = "137.229.182.200";
 				dest_port = "23";
 		#else
 				std::cerr << "Usage: telnet <host> <port>\n";
@@ -78,7 +78,7 @@ int main(int argc, char * argv[])
 
 
 	//open video and cascade + error check
-	VideoCapture capture(0);
+	VideoCapture capture(1);
 
 	if (!capture.isOpened()) 
 		{ printf("Error loading video capture"); return 1; }

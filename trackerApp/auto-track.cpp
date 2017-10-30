@@ -21,7 +21,7 @@ using namespace std;
 using namespace cv;
 
 Rect detectAndDisplay(Mat frame);
-String trackIt(Rect face, double frameWidth, double frameHeight, double frameSize);
+String trackIt(Rect face, double frameWidth, double frameHeight, double frameSize, String prvcmd);
 
 Mat frame; //frame to detect faces on
 CascadeClassifier cascade;
@@ -29,7 +29,7 @@ string cascade_name = "headshoulders.xml"; //specify cascade here
 
 int main(int argc, char * argv[])
 {
-	//***begin telnet initilization***//
+	//***begin telnet initialization***//
 		#ifdef POSIX
 			termios stored_settings;
 			tcgetattr(0, &stored_settings);
@@ -47,7 +47,7 @@ int main(int argc, char * argv[])
 		if (argc != 5)
 		{
 			#ifdef WIN32
-				dest_ip = "137.229.182.171";
+				dest_ip = "137.229.182.200";
 				dest_port = "23";
 				acct = "admin";
 				pw = "password";
@@ -83,12 +83,15 @@ int main(int argc, char * argv[])
 			cout << "Could not connect to host" << endl;
 		});
 
-		telnet_client.write(acct);
-		telnet_client.write("\r");
-		Sleep(500);
-		telnet_client.write(pw);
-		telnet_client.write("\r");
-	//***end telnet initilization***//
+	//***end telnet initialization***//
+
+	Sleep(500);
+	telnet_client.write(acct);
+	telnet_client.write("\r");
+	Sleep(500);
+	telnet_client.write(pw);
+	telnet_client.write("\r");
+	Sleep(500);
 
 	VideoCapture capture(0);
 
@@ -100,9 +103,9 @@ int main(int argc, char * argv[])
 	double frameSize = frameWidth * frameHeight;
 
 	Rect face;
-	Rect prv_face = Rect(Point(0, 0), Point(0, 0));
+	Rect prvface = Rect(Point(0, 0), Point(0, 0));
 	string cmd;
-	string prv_cmd = "camera pan stop";
+	string prvcmd = "camera pan stop";
 
 	int j = 0; //frame counter
 	while (true)
@@ -115,21 +118,21 @@ int main(int argc, char * argv[])
 			face = detectAndDisplay(frame);
 
 			if (face == Rect(Point(0, 0), Point(0, 0))) //if no face detected
-				face = prv_face;
+				face = prvface;
 
 			if (j % 5 == 0) //set command freq here
 			{
-				cmd = trackIt(face, frameWidth, frameHeight, frameSize);
+				cmd = trackIt(face, frameWidth, frameHeight, frameSize, prvcmd);
 
-				if (cmd != prv_cmd)
+				if (cmd != prvcmd)
 				{
 					cout << cmd << endl;
 					telnet_client.write(cmd);
 					telnet_client.write('\r');
 				}
-				prv_cmd = cmd;
+				prvcmd = cmd;
 			}
-			prv_face = face;
+			prvface = face;
 		}
 		else
 		{
@@ -173,7 +176,7 @@ Rect detectAndDisplay(Mat frame)
 }
 
 //returns command to send to camera
-String trackIt(Rect face, double frameWidth, double frameHeight, double frameSize)
+String trackIt(Rect face, double frameWidth, double frameHeight, double frameSize, String prvcmd)
 {
 	Point center = Point(face.x + face.width / 2, face.y + face.height / 2);
 	int faceSize = (face.width * face.height);
@@ -185,7 +188,7 @@ String trackIt(Rect face, double frameWidth, double frameHeight, double frameSiz
 	if ((center.x > frameWidth*lowerLimit && center.x < frameWidth*upperLimit) || center.x == 0)
 		x_weight = 0;
 
-	if ((center.y > frameHeight*lowerLimit && center.y < frameHeight*upperLimit) || center.y == 0) 
+	if ((center.y > frameHeight*lowerLimit && center.y < frameHeight*upperLimit) || center.y == 0)
 		y_weight = 0;
 
 	if (x_weight >= y_weight && x_weight > 0)

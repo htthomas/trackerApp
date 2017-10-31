@@ -87,10 +87,10 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>C:\Users\Henry\Downloads\opencv\build\include;C:\Users\Henry\Downloads\boost_1_62_0</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\dependencies\opencv\build\include;C:\dependencies\boost_1_62_0</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>C:\Users\Henry\Downloads\opencv\build\x64\vc14\lib;C:\Users\Henry\Downloads\boost_1_62_0\lib64-msvc-14.0</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\dependencies\opencv\build\x64\vc14\lib;C:\dependencies\boost_1_62_0\lib64-msvc-14.0</AdditionalLibraryDirectories>
       <AdditionalDependencies>opencv_world330d.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>

@@ -21,7 +21,7 @@ using namespace std;
 using namespace cv;
 
 Rect detectAndDisplay(Mat frame);
-String trackIt(Rect face, double frameWidth, double frameHeight, double frameSize, String prvcmd);
+String trackIt(Rect face, double frameWidth, double frameHeight, double frameSize);
 
 Mat frame; //frame to detect faces on
 CascadeClassifier cascade;
@@ -85,7 +85,7 @@ int main(int argc, char * argv[])
 
 	//***end telnet initialization***//
 
-	Sleep(500);
+	Sleep(1000);
 	telnet_client.write(acct);
 	telnet_client.write("\r");
 	Sleep(500);
@@ -122,7 +122,7 @@ int main(int argc, char * argv[])
 
 			if (j % 5 == 0) //set command freq here
 			{
-				cmd = trackIt(face, frameWidth, frameHeight, frameSize, prvcmd);
+				cmd = trackIt(face, frameWidth, frameHeight, frameSize);
 
 				if (cmd != prvcmd)
 				{
@@ -176,14 +176,14 @@ Rect detectAndDisplay(Mat frame)
 }
 
 //returns command to send to camera
-String trackIt(Rect face, double frameWidth, double frameHeight, double frameSize, String prvcmd)
+String trackIt(Rect face, double frameWidth, double frameHeight, double frameSize)
 {
 	Point center = Point(face.x + face.width / 2, face.y + face.height / 2);
 	int faceSize = (face.width * face.height);
 	int x_weight = (int)abs(200 * (center.x / frameWidth - 0.5));
 	int y_weight = (int)abs(200 * (center.y / frameWidth - 0.5));
-	double lowerLimit = 0.4;
-	double upperLimit = 0.6;
+	double lowerLimit = 0.35;
+	double upperLimit = 0.65;
 
 	if ((center.x > frameWidth*lowerLimit && center.x < frameWidth*upperLimit) || center.x == 0)
 		x_weight = 0;
@@ -194,16 +194,16 @@ String trackIt(Rect face, double frameWidth, double frameHeight, double frameSiz
 	if (x_weight >= y_weight && x_weight > 0)
 	{
 		if (center.x - frameWidth / 2 > 0)
-			return "camera pan right";
+			return "camera pan right 11";
 		else
-			return "camera pan left";
+			return "camera pan left 11";
 	}
 	else if (x_weight < y_weight && y_weight > 0)
 	{
 		if (center.y - frameHeight / 2 > 0)
-			return "camera tilt down";
+			return "camera tilt down 8";
 		else
-			return "camera tilt up";
+			return "camera tilt up 8";
 	}
 	else if (x_weight == 0 && y_weight == 0)
 	{

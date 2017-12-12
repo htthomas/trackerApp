@@ -30,7 +30,7 @@ class TrackingWindow:
         #Window Creation
         self.root = Tk()
         self.root.title("Lecture-Tracking App")
-        self.root.geometry("350x120")
+        self.root.geometry("350x80")
         self.root.resizable(width=False, height=False)
         self.can = Canvas(self.root, height = 20, width = 50)
         self.can.place(relx = 0.5, rely = 0.5, anchor = CENTER)
@@ -46,7 +46,6 @@ class TrackingWindow:
         
         global resume
         resume = Button(self.can, text="", height = 2, width=50)
-        resume.pack()
         
     def getStartFlag(self):
         return self.start_flag
@@ -61,27 +60,27 @@ class TrackingWindow:
         self.exit_flag = flag 
         
     def resume(self):
-        resume.config(text = "Resume Tracking")
+        resume.config(text = "Pause Tracking")
         label.config(text = "Tracking Mode: Automatic Tracking")        
         
     def pause(self):
-        resume.config(text = "Pause Tracking")
+        resume.config(text = "Resume Tracking")
         label.config(text = "Tracking Mode: Manual Tracking")
         
     def resume_command(self):
         resume.config(command = lambda: self.pause_resume())
-        self.pause()
+        self.resume()
         
     def pause_resume(self): # dynamically changes the text displayed on Pause/Resume button.
         if self.start_flag == 1:
             s = threading.Thread(target = self.setStartFlag, args= (0,))
-            v = threading.Thread(target = self.resume)        
+            v = threading.Thread(target = self.pause)        
             s.daemon = True
             s.start()
             v.start()
         else:
             s = threading.Thread(target = self.setStartFlag, args= (1,))
-            v = threading.Thread(target = self.pause)        
+            v = threading.Thread(target = self.resume)        
             s.daemon = True
             s.start()
             v.start()            
@@ -98,6 +97,7 @@ class TrackingWindow:
         track.start()
         button_command.start()
         start.pack_forget()
+        resume.pack()
         
     #detect face and return their rectangle
     def detectAndDisplay(self, frame, cascade):

@@ -2,16 +2,28 @@
 #    Cenek's CS Capstone
 #    Fall Semester 2017
 #
-#Coded by:
+#Developers:
 #    Henry Thomas
 #    Tevin Gladden
 #    Devon Olsen
 #
+#Descripton:
+#    This software is designed to automatically track a professor giving a lecture
+#    using the VADDIO cameras in UAA's e-learning classrooms.  It receives a video
+#    feed via a USB connection to the VADDIO A/V bridge, and sends commands to the
+#    camera via telnet (look for the IP on the front of the A/V bridge).  The IP
+#    of the camera, username, and password are specified at startup.
+#
+#Notes:
+#    ***Camera Preset 1 MUST be reserved, zoomed in on LEFT side of whiteboard***
+#    This program needs a decently powerful computer to do real-time video anaylsis
+#    Camera speed must be tailored on per-room basis
+#    False positives (posters, etc.) must be identified and removed on a per-room basis
+#
 #REQUIREMENTS:
 #    python 2.x.x
 #    pip install opencv-python
-#
-#Deal with false positives!
+#    headshoulders.xml in same directory
 
 import cv2
 import getpass
@@ -21,92 +33,109 @@ import threading
 import thread
 from Tkinter import *
 
-ip = ""
+ip = "137.229.182.217"
 acct = "admin"
 pw = "password"
 
-class TrackingApp:
-    def __init__(self):
-        pass
-    def displayStart(self, master):
-        print ("Start Flag", master.start_flag)
-        
 class TrackingWindow:
     def __init__(self, start_flag, exit_flag):
         self.start_flag = start_flag
         self.exit_flag = exit_flag
         #exit_flag = 0
-        
+
         #Window Creation
         self.root = Tk()
-        self.root.title("Lecturer-Tracking App")
-        self.root.geometry("300x300")
-        self.can = Canvas(self.root, bg = 'red', height = 150, width = 150)
+        self.root.title("Lecture-Tracking App")
+        self.root.geometry("350x120")
+        self.root.resizable(width=False, height=False)
+        self.can = Canvas(self.root, height = 20, width = 50)
         self.can.place(relx = 0.5, rely = 0.5, anchor = CENTER)
-        
+
+        global label
+        label = Label(self.can, text = "Ready to Begin Tracking", bg = "white", height = 2, width = 50)
+        label.pack(side = TOP)
+
         #button creation
-        #start = Button(self.can, text="Automatic", width=50, command=threading.Thread(target=self.start).start())        
-        
-        start = Button(self.can, text="Begin Tracking", width=50, command=lambda: self.begin())
+        global start
+        start = Button(self.can, text="Begin Tracking", height = 2, width=50, command=lambda: self.begin())
         start.pack()
-        
-        resume = Button(self.can, text="Resume Tracking", width=50, command=lambda: self.start())
+
+        global resume
+        resume = Button(self.can, text="", height = 2, width=50)
         resume.pack()
-        
-        pause = Button(self.can, text="Pause Tracking", width=50, command=lambda: self.stop())
-        pause.pack()
-        
-        #frame = root
+
     def getStartFlag(self):
         return self.start_flag
-    
+
+    def getExitFlag(self):
+        return self.exit_flag
+
     def setStartFlag(self, flag):
         self.start_flag = flag
-        
-    def start(self):       
-        s = threading.Thread(target = self.setStartFlag, args= (1,))
-        s.daemon = True
-        s.start()
-        #self.lectureTrack()
-        
+
+    def setStopFlag(self, flag):
+        self.exit_flag = flag 
+
+    def resume(self):
+        resume.config(text = "Resume Tracking")
+        label.config(text = "Tracking Mode: Automatic Tracking")        
+
+    def pause(self):
+        resume.config(text = "Pause Tracking")
+        label.config(text = "Tracking Mode: Manual Tracking")
+
+    def resume_command(self):
+        resume.config(command = lambda: self.pause_resume())
+        self.pause()
+
+    def pause_resume(self): # dynamically changes the text displayed on Pause/Resume button.
+        if self.start_flag == 1:
+            s = threading.Thread(target = self.setStartFlag, args= (0,))
+            v = threading.Thread(target = self.resume)        
+            s.daemon = True
+            s.start()
+            v.start()
+        else:
+            s = threading.Thread(target = self.setStartFlag, args= (1,))
+            v = threading.Thread(target = self.pause)        
+            s.daemon = True
+            s.start()
+            v.start()            
+
     def stop(self):        
         t = threading.Thread(target = self.setStartFlag, args= (0,))   
         t.daemon = True
-        t.start()
-        
-    def printNumbers(self):
-        foobar = 1
-        #print self.exit_flag, self.start_flag        
-        
+        t.start()        
+
     def begin(self):
         track = threading.Thread(target = self.lectureTrack)
-        numbers = threading.Thread(target = self.printNumbers)
-        numbers.daemon = True
-        track.daemon = True
+        button_command = threading.Thread(target = self.resume_command)
+        track.daemon = True 
         track.start()
-        numbers.start()
-        
-    #detect face and return their rectangle
+        button_command.start()
+        start.pack_forget()
+
+    #detect biggest face and return its rectangle
     def detectAndDisplay(self, frame, cascade):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = cascade.detectMultiScale(gray, 1.3, 7)
         bigface = (0, 0, 0, 0)
-        
+
         for (x, y, w, h) in faces:
             cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
-            
+
         cv2.imshow('imshow', frame)
-        
+
         if len(faces) == 0:
             return None
-        
+
         for i in range(len(faces)):
             face = faces[i];
             if face[2] > bigface[2]:
                 bigface = face
-                
+
         return bigface
-    
+
     def trackIt(self, face, frameWidth, frameHeight, frameSize):
         x = face[0]
         y = face[1]
@@ -115,36 +144,36 @@ class TrackingWindow:
         centx = x + w / 2
         centy = y + h / 2
         faceSize = w * h
-        
+
         x_weight = abs(200 * (centx / frameWidth - 0.5))
         y_weight = abs(200 * (centy / frameWidth - 0.5))
-        lowerLimit = 0.35
-        upperLimit = 0.65
-    
+        lowerLimit = 0.38
+        upperLimit = 0.62
+
         if (centx > frameWidth * lowerLimit and centx < frameWidth * upperLimit) or centx == 0:
             x_weight = 0
-    
+
         if (centy > frameHeight * lowerLimit and centy < frameHeight * upperLimit) or centy == 0:
             y_weight = 0
-    
+
         if x_weight >= y_weight and x_weight > 0:
             if centx - frameWidth / 2 > 0:
-                return "camera pan right 9\n" #fine tune speed here (int)
+                return "camera pan right 11\n"
             else:
-                return "camera pan left 9\n" #fine tune speed here (int)
-            
+                return "camera pan left 11\n"
+
         elif x_weight < y_weight and y_weight > 0:
             if centy - frameHeight / 2 > 0:
-                return "camera tilt down 4\n" #fine tune speed here (int)
+                return "camera tilt down 7\n"
             else:
-                return "camera tilt up 4\n" #fine tune speed here (int)
-            
+                return "camera tilt up 7\n"
+
         elif x_weight == 0 and y_weight == 0:
             if abs(centx - frameWidth / 2) > abs(centy - frameHeight / 2):
                 return "camera tilt stop\n"
             else:
                 return "camera pan stop\n"
-            
+
     def lectureTrack(self):
         global ip
         global acct
@@ -154,106 +183,105 @@ class TrackingWindow:
         user = acct
         password = pw
         #getpass.getpass()
+
+        print host
+        print user
+        print pw
         
-        tn = 0
-        
+        #tn variable?
         try:
             tn = telnetlib.Telnet(host)
         except:
-            print("Telnet connection error")
-            exit()
-        
+            print "Could not connect to host"
+            sys.exit()
+
         tn.read_until("login: ")
         tn.write(user + "\n")
-        
+
         if password:
             tn.read_until("Password: ")
             tn.write(password + "\n")
-    
+
         cascade = cv2.CascadeClassifier("headshoulders.xml")
         capture = cv2.VideoCapture(0)
         #"rtsp://192.168.1.75:554/vaddio-qc-usb-stream"
-        
+
         frameWidth = capture.get(3)
-        frameHeight = capture.get(4) 
-        frameSize = frameWidth * frameHeight
+        frameHeight = capture.get(4)
         
+        print "Frame width: " + frameWidth
+        print "Frame height: " + frameHeight
+        
+        frameSize = frameWidth * frameHeight
+
         face = None
         prvface = None
         cmd = ""
         prvcmd = "camera pan stop"
-    
+
         j = 0 #frame counter
         nodetects = 0 #counter for frames with no detections
-        totalnodetects = 0
-        totaldetects = 0
-        
-        tn.write("camera recall 1\n") #camera recall preset 1
-        tn.write("camera pan right 9\n") #pan across whiteboard to find subject
-        
+        td = 0 #total detects
+        tnd = 0 # total nodetects
 
+        print ("Initializing...")
+        tn.write("camera recall 1\n")
+        tn.write("camera pan right 8\n")
+        
         #while inside while to maintain loop and active program
         #while self.getStartFlag() == 1 or while self.getStartFlag() == 1
-        while self.exit_flag == 0:                
+        while self.exit_flag == 0:              
             ret, frame = capture.read()
             j += 1
-            
+
             if frame is not None:
                 face = self.detectAndDisplay(frame, cascade)
-                    
+
                 if face is None: #if no face detected
                     face = prvface
                     nodetects += 1
-                    totalnodetects += 1
-                    
+                    tnd += 1
+
                     if nodetects == 150: #seconds to wait = nodetects / framerate
-                        print ("tracking failure, recovering...")
+                        print ("Tracking failure, recovering...")
                         tn.write("camera recall 1\n")
-                        tn.write("camera pan right 9\n")
-                        
+                        tn.write("camera pan right 8\n")
+
                 else:
                     nodetects = 0
-                    totaldetects += 1
-                    
+                    td += 1
+
                     if j % 1 == 0: #set command freq here
                         cmd = self.trackIt(face, frameWidth, frameHeight, frameSize);
-            
+
                         if (cmd != prvcmd):
                             if self.start_flag == 1:
+                                print "Accuracy: " + (td / (td + tnd))
                                 tn.write(cmd)
-                                print("Detection rate = " + 100 * (totaldetects / (totaldetects + totalnodetects) ) + "%")
                         print(cmd)
                         prvcmd = cmd
                         prvface = face    
-            
+
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
-    
+
         print (tn.read_all())
         cap.release()
-        cv2.destroyAllWindows()
-        
+        cv2.destroyAllWindows()                        
+
 if __name__ == '__main__':
     global ip
     global acct
     global pw
     
-    if len(sys.argv) == 5:
+    if len(sys.argv) == 4:
         ip = argv[1]
-        acct = argv[3]
-        pw = argv[4]
+        acct = argv[2]
+        pw = argv[3]
     else:
-        ip = raw_input("IP: ") #192.168.1.75
-        acct = raw_input("ACCT (admin): ") #admin
-        pw = raw_input("PW (password): ") #password
-
-    print("WARNING: camera preset 1 must be set to the left side of ")
-    print("the whiteboard, and zoomed in appropriately.")
-    print()
-    print("This software cannot handle high-res video streams on ")
-    print("systems with low processing power.")
-    print()
-    print("initializing...")
-    
+        ip = raw_input("IP: ") #137.229.182.217
+        acct = raw_input("ACCT: ") #admin
+        pw = raw_input("PW: ") #password
+        
 window = TrackingWindow(1, 0)
 window.root.mainloop()

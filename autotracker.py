@@ -46,7 +46,7 @@ class TrackingWindow:
         #Window Creation
         self.root = Tk()
         self.root.title("Lecture-Tracking App")
-        self.root.geometry("350x120")
+        self.root.geometry("360x80")
         self.root.resizable(width=False, height=False)
         self.can = Canvas(self.root, height = 20, width = 50)
         self.can.place(relx = 0.5, rely = 0.5, anchor = CENTER)
@@ -62,7 +62,6 @@ class TrackingWindow:
 
         global resume
         resume = Button(self.can, text="", height = 2, width=50)
-        resume.pack()
 
     def getStartFlag(self):
         return self.start_flag
@@ -77,16 +76,16 @@ class TrackingWindow:
         self.exit_flag = flag 
 
     def resume(self):
-        resume.config(text = "Resume Tracking")
+        resume.config(text = "Pause Tracking")
         label.config(text = "Tracking Mode: Automatic Tracking")        
 
     def pause(self):
-        resume.config(text = "Pause Tracking")
+        resume.config(text = "Resume Tracking")
         label.config(text = "Tracking Mode: Manual Tracking")
 
     def resume_command(self):
         resume.config(command = lambda: self.pause_resume())
-        self.pause()
+        self.resume()
 
     def pause_resume(self): # dynamically changes the text displayed on Pause/Resume button.
         if self.start_flag == 1:
@@ -114,11 +113,12 @@ class TrackingWindow:
         track.start()
         button_command.start()
         start.pack_forget()
+        resume.pack()
 
     #detect biggest face and return its rectangle
     def detectAndDisplay(self, frame, cascade):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = cascade.detectMultiScale(gray, 1.32, 14)
+        faces = cascade.detectMultiScale(gray, 1.2, 7)
         bigface = (0, 0, 0, 0)
 
         for (x, y, w, h) in faces:
@@ -158,15 +158,15 @@ class TrackingWindow:
 
         if x_weight >= y_weight and x_weight > 0:
             if centx - frameWidth / 2 > 0:
-                return "camera pan right 11\n"
+                return "camera pan right 7\n"
             else:
-                return "camera pan left 11\n"
+                return "camera pan left 7\n"
 
         elif x_weight < y_weight and y_weight > 0:
             if centy - frameHeight / 2 > 0:
-                return "camera tilt down 7\n"
+                return "camera tilt down 1\n"
             else:
-                return "camera tilt up 7\n"
+                return "camera tilt up 1\n"
 
         elif x_weight == 0 and y_weight == 0:
             if abs(centx - frameWidth / 2) > abs(centy - frameHeight / 2):
@@ -188,7 +188,6 @@ class TrackingWindow:
         print user
         print pw
         
-        #tn variable?
         try:
             tn = telnetlib.Telnet(host)
         except:
@@ -217,13 +216,14 @@ class TrackingWindow:
         prvcmd = "camera pan stop"
 
         j = 0 #frame counter
+        detects = 0
         nodetects = 0 #counter for frames with no detections
         td = 0 #total detects
         tnd = 0 # total nodetects
 
         print ("Initializing...")
-        tn.write("camera recall 1\n")
-        tn.write("camera pan right 8\n")
+        tn.write("camera preset recall 1\n")
+        tn.write("camera pan right 10\n")
         
         #while inside while to maintain loop and active program
         #while self.getStartFlag() == 1 or while self.getStartFlag() == 1
@@ -235,25 +235,27 @@ class TrackingWindow:
                 face = self.detectAndDisplay(frame, cascade)
 
                 if face is None: #if no face detected
+                    detects = 0
                     face = prvface
                     nodetects += 1
                     tnd += 1
 
-                    if nodetects == 150: #seconds to wait = nodetects / framerate
+                    if nodetects % 135 == 0: #seconds to wait = nodetects / framerate
                         print ("Tracking failure, recovering...")
-                        tn.write("camera recall 12\n")
-                        tn.write("camera pan right 8\n")
+                        tn.write("camera preset recall 1\n")
+                        tn.write("camera pan right 10\n")
 
                 else:
+                    detects += 1
                     nodetects = 0
                     td += 1
-
-                    if j % 1 == 0: #set command freq here
+                    
+                    if j % 1 == 0 and detects > 2: #set command freq here
                         cmd = self.trackIt(face, frameWidth, frameHeight, frameSize);
 
                         if (cmd != prvcmd):
                             if self.start_flag == 1:
-                                print "Accuracy: ", (td / (td + tnd))
+                                print "Accuracy: ", 100*(td / (td + tnd))
                                 tn.write(cmd)
                         print(cmd)
                         prvcmd = cmd
